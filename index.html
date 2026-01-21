@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
@@ -25,9 +25,8 @@
                 <li><a href="#amenities">Amenities</a></li>
                 <li><a href="#pricing">Pricing</a></li>
                 <li><a href="#membership">Membership</a></li>
+                <li><a href="#teams">Upcoming Teams</a></li>
                 <li><a href="#booking">Booking</a></li>
-                <li><a href="#media">Media Gallery</a></li>
-                <li><a href="#media-upload">Media Upload</a></li>
                 <li><a href="#contact">Contact</a></li>
             </ul>
             <div class="hamburger">
@@ -40,8 +39,11 @@
 
     <!-- Hero Section -->
     <section id="home" class="hero">
-        <div class="hero-overlay"></div>
-        <div class="stadium-lights"></div>
+        <div class="pitch-background"></div>
+        <div class="pitch-pattern"></div>
+        <div class="stadium-lighting"></div>
+        <div class="hero-overlay-gradient"></div>
+        <div class="hero-vignette"></div>
         <div class="hero-content">
             <div class="container">
                 <h1 class="hero-title">
@@ -56,11 +58,6 @@
                     <a href="#amenities" class="btn btn-secondary">View Amenities</a>
                 </div>
             </div>
-        </div>
-        <div class="hero-elements">
-            <div class="goalpost goalpost-left"></div>
-            <div class="goalpost goalpost-right"></div>
-            <div class="pitch-lines"></div>
         </div>
         <div class="scroll-indicator">
             <div class="mouse"></div>
@@ -192,9 +189,8 @@
                         <p class="pricing-time">Morning – Afternoon</p>
                     </div>
                     <div class="pricing-price">
-                        <span class="currency">KES</span>
-                        <span class="amount">13,000</span>
-                        <span class="period">/ hour</span>
+                        <span class="amount tbcs">TBCS</span>
+                        <span class="period">To Be Confirmed Soon</span>
                     </div>
                     <ul class="pricing-features">
                         <li>✓ Full pitch access</li>
@@ -209,9 +205,8 @@
                         <p class="pricing-time">Evening / Night</p>
                     </div>
                     <div class="pricing-price">
-                        <span class="currency">KES</span>
-                        <span class="amount">13,000</span>
-                        <span class="period">/ hour</span>
+                        <span class="amount tbcs">TBCS</span>
+                        <span class="period">To Be Confirmed Soon</span>
                     </div>
                     <ul class="pricing-features">
                         <li>✓ Full pitch access</li>
@@ -225,9 +220,8 @@
                         <p class="pricing-time">All Day</p>
                     </div>
                     <div class="pricing-price">
-                        <span class="currency">KES</span>
-                        <span class="amount">13,000</span>
-                        <span class="period">/ hour</span>
+                        <span class="amount tbcs">TBCS</span>
+                        <span class="period">To Be Confirmed Soon</span>
                     </div>
                     <ul class="pricing-features">
                         <li>✓ Full pitch access</li>
@@ -239,6 +233,70 @@
             <div class="pricing-note">
                 <p><strong>Tournament / Full-Day Booking:</strong> Custom pricing available – <a href="#contact">Contact us</a> for details</p>
                 <p class="discount-note"><i class="fas fa-lightbulb"></i> Discounts available for leagues, academies & long-term bookings</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Upcoming Teams Section -->
+    <section id="teams" class="teams">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Upcoming Teams</h2>
+                <div class="title-underline"></div>
+                <p class="section-subtitle">See which teams are playing this week</p>
+            </div>
+            <div class="teams-content">
+                <div class="teams-grid" id="teamsGrid">
+                    <!-- Teams will be dynamically loaded here -->
+                    <div class="team-card">
+                        <div class="team-date">
+                            <span class="date-day">15</span>
+                            <span class="date-month">MAR</span>
+                        </div>
+                        <div class="team-info">
+                            <h3 class="team-name">Thunder FC</h3>
+                            <p class="team-time">7:00 PM - 9:00 PM</p>
+                            <p class="team-slot">2 hours</p>
+                        </div>
+                        <div class="team-status available">Confirmed</div>
+                    </div>
+                    <div class="team-card">
+                        <div class="team-date">
+                            <span class="date-day">16</span>
+                            <span class="date-month">MAR</span>
+                        </div>
+                        <div class="team-info">
+                            <h3 class="team-name">Eagles United</h3>
+                            <p class="team-time">6:00 PM - 8:00 PM</p>
+                            <p class="team-slot">2 hours</p>
+                        </div>
+                        <div class="team-status available">Confirmed</div>
+                    </div>
+                    <div class="team-card">
+                        <div class="team-date">
+                            <span class="date-day">17</span>
+                            <span class="date-month">MAR</span>
+                        </div>
+                        <div class="team-info">
+                            <h3 class="team-name">Lions FC</h3>
+                            <p class="team-time">8:00 PM - 10:00 PM</p>
+                            <p class="team-slot">2 hours</p>
+                        </div>
+                        <div class="team-status available">Confirmed</div>
+                    </div>
+                    <div class="team-card">
+                        <div class="team-date">
+                            <span class="date-day">18</span>
+                            <span class="date-month">MAR</span>
+                        </div>
+                        <div class="team-info">
+                            <h3 class="team-name">Strikers FC</h3>
+                            <p class="team-time">5:00 PM - 7:00 PM</p>
+                            <p class="team-slot">2 hours</p>
+                        </div>
+                        <div class="team-status available">Confirmed</div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -300,6 +358,10 @@
                             </div>
                         </div>
                         <div class="form-group">
+                            <label for="teamName">Team Name</label>
+                            <input type="text" id="teamName" name="teamName" required placeholder="Enter your team name">
+                        </div>
+                        <div class="form-group">
                             <label for="customerName">Full Name</label>
                             <input type="text" id="customerName" name="customerName" required placeholder="Enter your full name">
                         </div>
@@ -326,11 +388,11 @@
                             </div>
                             <div class="summary-item">
                                 <span>Price per Hour:</span>
-                                <span>KES 13,000</span>
+                                <span class="tbcs">TBCS</span>
                             </div>
                             <div class="summary-item total-price">
                                 <span>Total Price:</span>
-                                <span id="bookingPrice">KES 0</span>
+                                <span id="bookingPrice" class="tbcs">TBCS</span>
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary btn-booking">
@@ -354,9 +416,8 @@
                 <div class="membership-card">
                     <div class="membership-badge">Basic</div>
                     <div class="membership-price">
-                        <span class="currency">KES</span>
-                        <span class="amount">50,000</span>
-                        <span class="period">/ month</span>
+                        <span class="amount tbcs">TBCS</span>
+                        <span class="period">To Be Confirmed Soon</span>
                     </div>
                     <ul class="membership-features">
                         <li>✓ 10 hours per month</li>
@@ -371,9 +432,8 @@
                     <div class="popular-badge">Most Popular</div>
                     <div class="membership-badge">Premium</div>
                     <div class="membership-price">
-                        <span class="currency">KES</span>
-                        <span class="amount">100,000</span>
-                        <span class="period">/ month</span>
+                        <span class="amount tbcs">TBCS</span>
+                        <span class="period">To Be Confirmed Soon</span>
                     </div>
                     <ul class="membership-features">
                         <li>✓ 25 hours per month</li>
@@ -389,9 +449,8 @@
                 <div class="membership-card">
                     <div class="membership-badge">Elite</div>
                     <div class="membership-price">
-                        <span class="currency">KES</span>
-                        <span class="amount">200,000</span>
-                        <span class="period">/ month</span>
+                        <span class="amount tbcs">TBCS</span>
+                        <span class="period">To Be Confirmed Soon</span>
                     </div>
                     <ul class="membership-features">
                         <li>✓ Unlimited hours</li>
@@ -410,8 +469,8 @@
         </div>
     </section>
 
-    <!-- Media Gallery Section -->
-    <section id="media" class="media-gallery">
+    <!-- Media Gallery Section (Hidden) -->
+    <section id="media" class="media-gallery hidden-section">
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">Media Gallery</h2>
@@ -456,8 +515,8 @@
         </div>
     </section>
 
-    <!-- Media Upload Section (For Media Team) -->
-    <section id="media-upload" class="media-upload">
+    <!-- Media Upload Section (Hidden) -->
+    <section id="media-upload" class="media-upload hidden-section">
         <div class="container">
             <div class="section-header">
                 <h2 class="section-title">Media Upload</h2>
@@ -633,8 +692,6 @@
                         <li><a href="#pricing">Pricing</a></li>
                         <li><a href="#membership">Membership</a></li>
                         <li><a href="#booking">Booking</a></li>
-                        <li><a href="#media">Media Gallery</a></li>
-                        <li><a href="#media-upload">Media Upload</a></li>
                     </ul>
                 </div>
                 <div class="footer-contact">

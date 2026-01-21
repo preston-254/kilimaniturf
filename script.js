@@ -163,6 +163,10 @@ function validateBookingForm(formData) {
         errors.push('Please select at least one time slot');
     }
     
+    if (!formData.get('teamName') || formData.get('teamName').trim().length < 2) {
+        errors.push('Please enter your team name');
+    }
+    
     // Check if slots are consecutive
     const slotOrder = ['17:00-18:00', '18:00-19:00', '19:00-20:00', '20:00-21:00', '21:00-22:00', '22:00-23:00', '23:00-00:00'];
     const sortedSlots = selectedSlots.sort((a, b) => slotOrder.indexOf(a) - slotOrder.indexOf(b));
@@ -261,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedHoursDisplay = document.getElementById('selectedHours');
     const bookingPriceDisplay = document.getElementById('bookingPrice');
     const bookingDateInput2 = document.getElementById('bookingDate');
-    const pricePerHour = 13000;
 
     // Slot order for consecutive checking
     const slotOrder = ['17:00-18:00', '18:00-19:00', '19:00-20:00', '20:00-21:00', '21:00-22:00', '22:00-23:00', '23:00-00:00'];
@@ -333,10 +336,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedHoursDisplay.textContent = hours;
             }
             
-            // Update total price
-            const totalPrice = hours * pricePerHour;
+            // Update total price - TBCS
             if (bookingPriceDisplay) {
-                bookingPriceDisplay.textContent = `KES ${totalPrice.toLocaleString()}`;
+                bookingPriceDisplay.textContent = 'TBCS';
+                bookingPriceDisplay.classList.add('tbcs');
             }
         } else {
             if (selectedSlotDisplay) {
@@ -346,7 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectedHoursDisplay.textContent = '0';
             }
             if (bookingPriceDisplay) {
-                bookingPriceDisplay.textContent = 'KES 0';
+                bookingPriceDisplay.textContent = 'TBCS';
+                bookingPriceDisplay.classList.add('tbcs');
             }
         }
     }
@@ -376,14 +380,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const selectedSlots = formData.getAll('timeSlot');
             const hours = selectedSlots.length;
-            const totalPrice = hours * 13000;
             
             const bookingData = {
                 date: formData.get('bookingDate'),
                 timeSlots: selectedSlots,
                 timeSlot: selectedSlots.length === 1 ? selectedSlots[0] : `${selectedSlots[0].split('-')[0]} - ${selectedSlots[selectedSlots.length - 1].split('-')[1]}`,
                 hours: hours,
-                totalPrice: totalPrice,
+                totalPrice: 'TBCS',
+                teamName: formData.get('teamName'),
                 name: formData.get('customerName'),
                 phone: formData.get('customerPhone'),
                 email: formData.get('customerEmail'),
@@ -427,7 +431,11 @@ function showPaymentModal(bookingData) {
                     </div>
                     ` : ''}
                     <div class="detail-item">
-                        <span>Name:</span>
+                        <span>Team Name:</span>
+                        <span>${bookingData.teamName}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span>Contact Name:</span>
                         <span>${bookingData.name}</span>
                     </div>
                     <div class="detail-item">
@@ -459,10 +467,10 @@ function showPaymentModal(bookingData) {
                 <div class="payment-amount">
                     <div class="amount-display">
                         <span>Total Amount:</span>
-                        <span class="amount-value">KES ${bookingData.totalPrice.toLocaleString()}</span>
+                        <span class="amount-value tbcs">TBCS</span>
                     </div>
                     <div class="amount-breakdown">
-                        <span>${bookingData.hours} hour${bookingData.hours > 1 ? 's' : ''} × KES 13,000</span>
+                        <span>${bookingData.hours} hour${bookingData.hours > 1 ? 's' : ''} - Price: TBCS</span>
                     </div>
                 </div>
                 <button class="btn btn-primary btn-pay" onclick="processPayment(${JSON.stringify(bookingData).replace(/"/g, '&quot;')})">
@@ -504,7 +512,12 @@ async function processPayment(bookingData) {
 }
 
 async function processMpesaPayment(bookingData) {
-    const amount = bookingData.totalPrice || (bookingData.hours * 13000); // Total amount for all hours
+    // Price is TBCS, so we'll show a message instead
+    if (bookingData.totalPrice === 'TBCS' || !bookingData.totalPrice) {
+        alert('Pricing is To Be Confirmed Soon. Please contact us for booking details.');
+        return;
+    }
+    const amount = bookingData.totalPrice;
     const phone = bookingData.phone.replace(/\D/g, ''); // Remove non-digits
     
     // Validate phone number (should start with 254 for Kenya)
@@ -598,7 +611,6 @@ async function initiateMpesaSTKPush(phone, amount, transactionRef, bookingData) 
 function showMpesaPrompt(transactionRef, bookingData) {
     const modal = document.querySelector('.payment-modal');
     const paymentBody = modal.querySelector('.payment-body');
-    const totalAmount = bookingData.totalPrice || (bookingData.hours * 13000);
     
     paymentBody.innerHTML = `
         <div class="mpesa-prompt">
@@ -608,7 +620,7 @@ function showMpesaPrompt(transactionRef, bookingData) {
             <div class="payment-info">
                 <div class="info-item">
                     <span>Amount:</span>
-                    <strong>KES ${totalAmount.toLocaleString()}</strong>
+                    <strong class="tbcs">TBCS</strong>
                 </div>
                 ${bookingData.hours > 1 ? `
                 <div class="info-item">
@@ -672,22 +684,40 @@ async function confirmBooking(transactionRef, bookingData) {
         booking.confirmedAt = new Date().toISOString();
     }
     
-    // Save booking to database (via API call)
-    try {
-        const response = await fetch('/api/bookings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        // Save booking to database (via API call)
+        try {
+            // Also save to localStorage for teams display
+            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+            bookings.push({
                 ...bookingData,
                 transactionRef: transactionRef,
-                amount: bookingData.totalPrice || (bookingData.hours * 13000),
-                totalPrice: bookingData.totalPrice || (bookingData.hours * 13000),
+                amount: 'TBCS',
+                totalPrice: 'TBCS',
                 status: 'confirmed',
-                paymentMethod: 'mpesa'
-            })
-        });
+                paymentMethod: 'mpesa',
+                createdAt: new Date().toISOString()
+            });
+            localStorage.setItem('bookings', JSON.stringify(bookings));
+            
+            // Reload teams display
+            if (typeof loadUpcomingTeams === 'function') {
+                loadUpcomingTeams();
+            }
+            
+            const response = await fetch('/api/bookings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ...bookingData,
+                    transactionRef: transactionRef,
+                    amount: 'TBCS',
+                    totalPrice: 'TBCS',
+                    status: 'confirmed',
+                    paymentMethod: 'mpesa'
+                })
+            });
         
         // Show success message
         showBookingSuccess(bookingData, transactionRef);
@@ -700,7 +730,10 @@ async function confirmBooking(transactionRef, bookingData) {
             const selectedHoursEl = document.getElementById('selectedHours');
             const bookingPriceEl = document.getElementById('bookingPrice');
             if (selectedHoursEl) selectedHoursEl.textContent = '0';
-            if (bookingPriceEl) bookingPriceEl.textContent = 'KES 0';
+            if (bookingPriceEl) {
+                bookingPriceEl.textContent = 'TBCS';
+                bookingPriceEl.classList.add('tbcs');
+            }
         }, 3000);
         
     } catch (error) {
@@ -791,7 +824,7 @@ function showMembershipModal(planType, amount) {
                     </div>
                     <div class="detail-item">
                         <span>Amount:</span>
-                        <span>KES ${amount.toLocaleString()} / month</span>
+                        <span class="tbcs">TBCS</span>
                     </div>
                 </div>
                 <div class="form-group">
@@ -809,7 +842,7 @@ function showMembershipModal(planType, amount) {
                 <div class="payment-amount">
                     <div class="amount-display">
                         <span>Total Amount:</span>
-                        <span class="amount-value">KES ${amount.toLocaleString()}</span>
+                        <span class="amount-value tbcs">TBCS</span>
                     </div>
                 </div>
                 <button class="btn btn-primary btn-pay" onclick="processMembershipPayment('${planType}', ${amount})">
@@ -1318,6 +1351,123 @@ function formatFileSize(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
+
+// ============================================
+// UPCOMING TEAMS FUNCTIONALITY
+// ============================================
+// Store bookings to display as upcoming teams
+const upcomingTeams = [];
+
+// Load upcoming teams from bookings
+function loadUpcomingTeams() {
+    const teamsGrid = document.getElementById('teamsGrid');
+    if (!teamsGrid) return;
+    
+    // In production, this would fetch from your backend API
+    // For now, we'll use sample data and bookings from localStorage
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Filter upcoming bookings (next 30 days)
+    const upcomingBookings = bookings
+        .filter(booking => {
+            const bookingDate = new Date(booking.date);
+            bookingDate.setHours(0, 0, 0, 0);
+            return bookingDate >= today && booking.status === 'confirmed';
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .slice(0, 12); // Show next 12 bookings
+    
+    // Sample teams if no bookings exist
+    const sampleTeams = [
+        { teamName: 'Thunder FC', date: '2024-03-15', timeSlot: '19:00-21:00', hours: 2 },
+        { teamName: 'Eagles United', date: '2024-03-16', timeSlot: '18:00-20:00', hours: 2 },
+        { teamName: 'Lions FC', date: '2024-03-17', timeSlot: '20:00-22:00', hours: 2 },
+        { teamName: 'Strikers FC', date: '2024-03-18', timeSlot: '17:00-19:00', hours: 2 },
+    ];
+    
+    const teamsToDisplay = upcomingBookings.length > 0 
+        ? upcomingBookings.map(booking => ({
+            teamName: booking.teamName || 'Team',
+            date: booking.date,
+            timeSlot: booking.timeSlot,
+            hours: booking.hours || 1
+        }))
+        : sampleTeams;
+    
+    if (teamsToDisplay.length === 0) {
+        teamsGrid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--text-dark); opacity: 0.7;">
+                <i class="fas fa-users" style="font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
+                <h3>No upcoming teams scheduled</h3>
+                <p>Be the first to book a slot!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    teamsGrid.innerHTML = teamsToDisplay.map(team => {
+        const date = new Date(team.date);
+        const day = date.getDate();
+        const month = date.toLocaleDateString('en-US', { month: 'SHORT' }).toUpperCase();
+        
+        // Parse time slot
+        const timeMatch = team.timeSlot.match(/(\d{2}):(\d{2})/);
+        let timeDisplay = team.timeSlot;
+        if (timeMatch) {
+            const hour = parseInt(timeMatch[1]);
+            const minute = timeMatch[2];
+            const period = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+            timeDisplay = `${displayHour}:${minute} ${period}`;
+            
+            // Calculate end time
+            const endHour = hour + team.hours;
+            const endPeriod = endHour >= 12 ? 'PM' : 'AM';
+            const displayEndHour = endHour > 12 ? endHour - 12 : (endHour === 12 ? 12 : endHour);
+            timeDisplay = `${displayHour}:${minute} ${period} - ${displayEndHour}:${minute} ${endPeriod}`;
+        }
+        
+        return `
+            <div class="team-card">
+                <div class="team-date">
+                    <span class="date-day">${day}</span>
+                    <span class="date-month">${month}</span>
+                </div>
+                <div class="team-info">
+                    <h3 class="team-name">${team.teamName}</h3>
+                    <p class="team-time">${timeDisplay}</p>
+                    <p class="team-slot">${team.hours} hour${team.hours > 1 ? 's' : ''}</p>
+                </div>
+                <div class="team-status available">Confirmed</div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Load teams when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    loadUpcomingTeams();
+    
+    // Reload teams when a new booking is made
+    const originalShowBookingSuccess = window.showBookingSuccess;
+    if (originalShowBookingSuccess) {
+        window.showBookingSuccess = function(...args) {
+            originalShowBookingSuccess.apply(this, args);
+            // Save booking to localStorage for teams display
+            const bookingData = args[0];
+            const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+            bookings.push({
+                ...bookingData,
+                status: 'confirmed',
+                createdAt: new Date().toISOString()
+            });
+            localStorage.setItem('bookings', JSON.stringify(bookings));
+            loadUpcomingTeams();
+        };
+    }
+});
 
 // ============================================
 // CONSOLE MESSAGE
