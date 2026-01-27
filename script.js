@@ -154,32 +154,20 @@ window.addEventListener('scroll', highlightActiveSection);
 function validateBookingForm(formData) {
     const errors = [];
     
-    if (!formData.get('bookingDate')) {
+    // Check date
+    if (!selectedDate) {
         errors.push('Please select a date');
     }
     
-    const selectedSlots = formData.getAll('timeSlot');
-    if (selectedSlots.length === 0) {
-        errors.push('Please select at least one time slot');
+    // Check time slots - must be exactly one slot (2 hours)
+    if (selectedTimeSlots.length === 0) {
+        errors.push('Please select a 2-hour time slot');
+    } else if (selectedTimeSlots.length > 1) {
+        errors.push('You can only book one 2-hour slot at a time');
     }
     
     if (!formData.get('teamName') || formData.get('teamName').trim().length < 2) {
         errors.push('Please enter your team name');
-    }
-    
-    // Check if slots are consecutive
-    const slotOrder = ['17:00-18:00', '18:00-19:00', '19:00-20:00', '20:00-21:00', '21:00-22:00', '22:00-23:00', '23:00-00:00'];
-    const sortedSlots = selectedSlots.sort((a, b) => slotOrder.indexOf(a) - slotOrder.indexOf(b));
-    
-    if (selectedSlots.length > 1) {
-        for (let i = 0; i < sortedSlots.length - 1; i++) {
-            const currentIndex = slotOrder.indexOf(sortedSlots[i]);
-            const nextIndex = slotOrder.indexOf(sortedSlots[i + 1]);
-            if (nextIndex !== currentIndex + 1) {
-                errors.push('Please select consecutive time slots only');
-                break;
-            }
-        }
     }
     
     if (!formData.get('customerName') || formData.get('customerName').trim().length < 2) {
@@ -249,14 +237,408 @@ revealElements.forEach(el => {
 });
 
 // ============================================
+// CALENDAR FUNCTIONALITY
+// ============================================
+
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let selectedDate = null;
+let selectedTimeSlots = [];
+
+// Time rules
+const TIME_RULES = {
+    weekdays: { start: 17, end: 23 }, // 5PM - 11PM
+    weekends: { start: 5, end: 23 }    // 5AM - 11PM
+};
+
+// Generate time slots based on date (2-hour slots)
+function generateTimeSlots(date) {
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const rules = isWeekend ? TIME_RULES.weekends : TIME_RULES.weekdays;
+    
+    const slots = [];
+    // Generate 2-hour slots (increment by 2)
+    for (let hour = rules.start; hour < rules.end; hour += 2) {
+        const endHour = hour + 2;
+        const startTime = `${hour.toString().padStart(2, '0')}:00`;
+        const endTime = endHour > 23 ? '23:00' : `${endHour.toString().padStart(2, '0')}:00`;
+        const timeSlot = `${startTime}-${endTime}`;
+        const displayTime = formatTimeSlot(hour, endHour);
+        
+        slots.push({
+            value: timeSlot,
+            display: displayTime,
+            hour: hour,
+            available: isSlotAvailable(date, timeSlot)
+        });
+    }
+    
+    return slots;
+}
+
+// Format time slot for display
+function formatTimeSlot(startHour, endHour) {
+    const formatHour = (h) => {
+        if (h === 0) return '12:00 AM';
+        if (h < 12) return `${h}:00 AM`;
+        if (h === 12) return '12:00 PM';
+        return `${h - 12}:00 PM`;
+    };
+    
+    const end = endHour > 23 ? 0 : endHour;
+    return `${formatHour(startHour)} – ${formatHour(end)}`;
+}
+
+// Generate calendar
+function generateCalendar() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) return;
+    
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const today = new Date();
+    
+    // Update month/year display
+    const monthYearDisplay = document.getElementById('currentMonthYear');
+    if (monthYearDisplay) {
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+        monthYearDisplay.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+    }
+    
+    // Clear calendar
+    calendarGrid.innerHTML = '';
+    
+    // Add day headers
+    const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayHeaders.forEach(day => {
+        const header = document.createElement('div');
+        header.className = 'calendar-day-header';
+        header.textContent = day;
+        calendarGrid.appendChild(header);
+    });
+    
+    // Add empty cells for days before month starts
+    for (let i = 0; i < firstDay; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'calendar-day';
+        calendarGrid.appendChild(empty);
+    }
+    
+    // Add days of month
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dayElement = document.createElement('div');
+        dayElement.className = 'calendar-day';
+        dayElement.textContent = day;
+        
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dateObj = new Date(currentYear, currentMonth, day);
+        
+        // Check if date is in the past
+        if (dateObj < today.setHours(0, 0, 0, 0)) {
+            dayElement.classList.add('disabled');
+        } else {
+            // Check if date has bookings
+            const hasBookings = bookingsDatabase.some(booking => {
+                const bookingDate = new Date(booking.date).toISOString().split('T')[0];
+                return bookingDate === dateStr && booking.status === 'confirmed';
+            });
+            
+            if (hasBookings) {
+                dayElement.classList.add('booked');
+            } else {
+                dayElement.classList.add('available');
+            }
+            
+            dayElement.addEventListener('click', () => selectDate(dateStr));
+        }
+        
+        // Highlight today
+        if (dateObj.toDateString() === today.toDateString()) {
+            dayElement.classList.add('today');
+        }
+        
+        calendarGrid.appendChild(dayElement);
+    }
+}
+
+// Select date
+function selectDate(dateStr) {
+    selectedDate = dateStr;
+    const dateInput = document.getElementById('bookingDate');
+    if (dateInput) {
+        dateInput.value = dateStr;
+    }
+    
+    // Update calendar display
+    document.querySelectorAll('.calendar-day').forEach(day => {
+        day.classList.remove('selected');
+    });
+    
+    const dateObj = new Date(dateStr);
+    const day = dateObj.getDate();
+    const month = dateObj.getMonth();
+    const year = dateObj.getFullYear();
+    
+    if (month === currentMonth && year === currentYear) {
+        const dayElements = document.querySelectorAll('.calendar-day');
+        dayElements.forEach((el, index) => {
+            if (el.textContent == day && !el.classList.contains('disabled')) {
+                el.classList.add('selected');
+            }
+        });
+    }
+    
+    // Generate time slots
+    generateTimeSlotsDisplay(dateStr);
+}
+
+// Generate time slots display
+function generateTimeSlotsDisplay(dateStr) {
+    const container = document.getElementById('timeSlotsContainer');
+    const dateDisplay = document.getElementById('selectedDateDisplay');
+    
+    if (!container || !dateStr) return;
+    
+    const slots = generateTimeSlots(dateStr);
+    container.innerHTML = '';
+    
+    // Update date display
+    if (dateDisplay) {
+        const dateObj = new Date(dateStr);
+        const formattedDate = dateObj.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+        dateDisplay.innerHTML = `<p><strong>${formattedDate}</strong></p>`;
+    }
+    
+    // Create time slot buttons
+    slots.forEach((slot, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'time-slot-btn';
+        button.textContent = slot.display;
+        button.dataset.slot = slot.value;
+        
+        if (!slot.available) {
+            button.classList.add('booked');
+            button.disabled = true;
+        } else {
+            button.classList.add('available');
+            button.addEventListener('click', () => toggleTimeSlot(slot.value, button));
+        }
+        
+        container.appendChild(button);
+    });
+    
+    // Reset selected slots
+    selectedTimeSlots = [];
+    updateBookingSummary();
+}
+
+// Toggle time slot selection (only one slot allowed - exactly 2 hours)
+function toggleTimeSlot(slotValue, button) {
+    const index = selectedTimeSlots.indexOf(slotValue);
+    
+    if (index > -1) {
+        // Deselect
+        selectedTimeSlots = [];
+        button.classList.remove('selected');
+    } else {
+        // Only allow one slot (2 hours exactly)
+        // Clear all previous selections
+        selectedTimeSlots = [];
+        document.querySelectorAll('.time-slot-btn').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        
+        // Select the new slot
+        selectedTimeSlots.push(slotValue);
+        button.classList.add('selected');
+    }
+    
+    updateBookingSummary();
+}
+
+// Update booking summary
+function updateBookingSummary() {
+    const dateDisplay = document.getElementById('selectedSlotDisplay');
+    const timeDisplay = document.getElementById('selectedTimeDisplay');
+    const hoursDisplay = document.getElementById('selectedHours');
+    const priceDisplay = document.getElementById('bookingPrice');
+    const hiddenInput = document.getElementById('selectedTimeSlots');
+    
+    if (selectedDate && selectedTimeSlots.length > 0) {
+        const dateObj = new Date(selectedDate);
+        const formattedDate = dateObj.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+        
+        if (dateDisplay) {
+            dateDisplay.textContent = formattedDate;
+        }
+        
+        if (timeDisplay) {
+            const slots = generateTimeSlots(selectedDate);
+            const selectedSlot = slots.find(s => s.value === selectedTimeSlots[0]);
+            if (selectedSlot) {
+                timeDisplay.textContent = selectedSlot.display;
+            }
+        }
+        
+        if (hoursDisplay) {
+            hoursDisplay.textContent = '2 hours';
+        }
+        
+        if (priceDisplay) {
+            priceDisplay.textContent = 'TBCS';
+            priceDisplay.classList.add('tbcs');
+        }
+        
+        if (hiddenInput) {
+            hiddenInput.value = JSON.stringify(selectedTimeSlots);
+        }
+        
+        // Hide warning since we only allow exactly 2 hours
+        const warning = document.getElementById('minHoursWarning');
+        if (warning) {
+            warning.classList.add('hidden');
+        }
+    } else {
+        if (dateDisplay) dateDisplay.textContent = 'Not selected';
+        if (timeDisplay) timeDisplay.textContent = 'Not selected';
+        if (hoursDisplay) hoursDisplay.textContent = '0 hours';
+        if (priceDisplay) {
+            priceDisplay.textContent = 'TBCS';
+            priceDisplay.classList.add('tbcs');
+        }
+        if (hiddenInput) hiddenInput.value = '';
+        
+        // Show warning if date selected but no time slot
+        const warning = document.getElementById('minHoursWarning');
+        if (selectedDate && selectedTimeSlots.length === 0) {
+            if (warning) {
+                warning.classList.remove('hidden');
+                warning.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Please select a 2-hour time slot</span>';
+            }
+        } else if (warning) {
+            warning.classList.add('hidden');
+        }
+    }
+}
+
+// Calendar navigation
+document.addEventListener('DOMContentLoaded', () => {
+    const prevBtn = document.getElementById('prevMonth');
+    const nextBtn = document.getElementById('nextMonth');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            generateCalendar();
+        });
+    }
+    
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            generateCalendar();
+        });
+    }
+    
+    // Generate initial calendar
+    generateCalendar();
+});
+
+// ============================================
 // BOOKING FUNCTIONALITY
 // ============================================
+
+// Store bookings for availability checking
+const bookingsDatabase = JSON.parse(localStorage.getItem('bookings') || '[]');
+
+// Check if a time slot is available
+function isSlotAvailable(date, timeSlot) {
+    const bookingDate = new Date(date).toISOString().split('T')[0];
+    return !bookingsDatabase.some(booking => {
+        const bookingDateStr = new Date(booking.date).toISOString().split('T')[0];
+        return bookingDateStr === bookingDate && 
+               booking.timeSlots && 
+               booking.timeSlots.includes(timeSlot) &&
+               booking.status === 'confirmed';
+    });
+}
+
+// Update slot availability based on selected date
+function updateSlotAvailability(date) {
+    if (!date) return;
+    
+    const timeSlotInputs = document.querySelectorAll('input[name="timeSlot"]');
+    timeSlotInputs.forEach(input => {
+        const timeSlot = input.value;
+        const slotLabel = input.closest('.time-slot');
+        const statusSpan = slotLabel?.querySelector('.slot-status');
+        
+        if (isSlotAvailable(date, timeSlot)) {
+            input.disabled = false;
+            slotLabel?.classList.remove('disabled', 'booked');
+            slotLabel?.classList.add('available');
+            if (statusSpan) {
+                statusSpan.textContent = 'Available';
+                statusSpan.className = 'slot-status available';
+            }
+        } else {
+            input.disabled = true;
+            input.checked = false;
+            slotLabel?.classList.remove('available');
+            slotLabel?.classList.add('booked', 'disabled');
+            if (statusSpan) {
+                statusSpan.textContent = 'Booked';
+                statusSpan.className = 'slot-status booked';
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Set minimum date to today
     const bookingDateInput = document.getElementById('bookingDate');
     if (bookingDateInput) {
         const today = new Date().toISOString().split('T')[0];
         bookingDateInput.setAttribute('min', today);
+        
+        // Update availability when date changes
+        bookingDateInput.addEventListener('change', (e) => {
+            updateSlotAvailability(e.target.value);
+            // Clear selected slots when date changes
+            document.querySelectorAll('input[name="timeSlot"]:checked').forEach(input => {
+                input.checked = false;
+            });
+            if (typeof updateSelectedSlot === 'function') {
+                updateSelectedSlot();
+            }
+        });
+        
+        // Initial availability check if date is already selected
+        if (bookingDateInput.value) {
+            updateSlotAvailability(bookingDateInput.value);
+        }
     }
 
     // Update selected slot display for multiple bookings
@@ -294,6 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedSlots = getSelectedSlots();
         const selectedDate = bookingDateInput2?.value;
         const hours = selectedSlots.length;
+        const MIN_HOURS = 2;
         
         // Check if slots are consecutive
         if (selectedSlots.length > 0 && !areSlotsConsecutive(selectedSlots)) {
@@ -302,6 +685,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const lastChecked = Array.from(timeSlotInputs).find(input => input.checked && !selectedSlots.includes(input.value));
             if (lastChecked) lastChecked.checked = false;
             return;
+        }
+        
+        // Check minimum hours requirement
+        if (selectedSlots.length > 0 && selectedSlots.length < MIN_HOURS) {
+            // Show warning but don't prevent selection
+            const warningMsg = document.getElementById('minHoursWarning');
+            if (warningMsg) {
+                warningMsg.classList.remove('hidden');
+                warningMsg.textContent = `Minimum ${MIN_HOURS} hours required. Please select ${MIN_HOURS - selectedSlots.length} more hour(s).`;
+            }
+        } else {
+            const warningMsg = document.getElementById('minHoursWarning');
+            if (warningMsg) warningMsg.classList.add('hidden');
         }
         
         if (selectedSlots.length > 0) {
@@ -369,6 +765,12 @@ document.addEventListener('DOMContentLoaded', () => {
         bookingForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
+            // Validate date and time slots
+            if (!selectedDate || selectedTimeSlots.length !== 1) {
+                alert('Please select a date and exactly one 2-hour time slot.');
+                return;
+            }
+            
             const formData = new FormData(bookingForm);
             
             // Validate form
@@ -378,14 +780,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             
-            const selectedSlots = formData.getAll('timeSlot');
-            const hours = selectedSlots.length;
+            // Get time slot display
+            const slots = generateTimeSlots(selectedDate);
+            const selectedSlot = slots.find(s => s.value === selectedTimeSlots[0]);
+            const timeSlotDisplay = selectedSlot ? selectedSlot.display : selectedTimeSlots[0];
             
             const bookingData = {
-                date: formData.get('bookingDate'),
-                timeSlots: selectedSlots,
-                timeSlot: selectedSlots.length === 1 ? selectedSlots[0] : `${selectedSlots[0].split('-')[0]} - ${selectedSlots[selectedSlots.length - 1].split('-')[1]}`,
-                hours: hours,
+                date: selectedDate,
+                timeSlots: selectedTimeSlots,
+                timeSlot: timeSlotDisplay,
+                hours: 2, // Always 2 hours
                 totalPrice: 'TBCS',
                 teamName: formData.get('teamName'),
                 name: formData.get('customerName'),
@@ -449,18 +853,31 @@ function showPaymentModal(bookingData) {
                 </div>
                 <div class="payment-options">
                     <h3>Payment Method</h3>
+                    <p class="payment-note-text"><i class="fas fa-info-circle"></i> Advance payment is required to confirm your booking</p>
                     <div class="payment-methods">
                         <label class="payment-method">
                             <input type="radio" name="paymentMethod" value="mpesa" checked>
-                            <span>M-Pesa</span>
+                            <div class="payment-method-content">
+                                <i class="fab fa-cc-mastercard"></i>
+                                <span>M-Pesa</span>
+                                <small>Mobile Money</small>
+                            </div>
                         </label>
                         <label class="payment-method">
                             <input type="radio" name="paymentMethod" value="card">
-                            <span>Card Payment</span>
+                            <div class="payment-method-content">
+                                <i class="fas fa-credit-card"></i>
+                                <span>Card Payment</span>
+                                <small>Visa, Mastercard</small>
+                            </div>
                         </label>
                         <label class="payment-method">
                             <input type="radio" name="paymentMethod" value="bank">
-                            <span>Bank Transfer</span>
+                            <div class="payment-method-content">
+                                <i class="fas fa-university"></i>
+                                <span>Bank Transfer</span>
+                                <small>Direct transfer</small>
+                            </div>
                         </label>
                     </div>
                 </div>
@@ -757,7 +1174,10 @@ function showBookingSuccess(bookingData, transactionRef) {
                     <p><strong>Time Slot(s):</strong> ${bookingData.timeSlot}</p>
                     ${bookingData.hours > 1 ? `<p><strong>Hours:</strong> ${bookingData.hours} hours</p>` : ''}
                 </div>
-                <p class="confirmation-note">A confirmation email has been sent to ${bookingData.email}</p>
+                <p class="confirmation-note">
+                    <i class="fas fa-envelope"></i> Confirmation email sent to ${bookingData.email}<br>
+                    <i class="fas fa-sms"></i> SMS confirmation sent to ${bookingData.phone}
+                </p>
             </div>
         `;
     }
@@ -1446,9 +1866,115 @@ function loadUpcomingTeams() {
     }).join('');
 }
 
+// Load upcoming games for preview section
+function loadUpcomingGamesPreview() {
+    const previewGrid = document.getElementById('upcomingGamesPreview');
+    if (!previewGrid) return;
+    
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const upcomingBookings = bookings
+        .filter(booking => {
+            const bookingDate = new Date(booking.date);
+            bookingDate.setHours(0, 0, 0, 0);
+            return bookingDate >= today && booking.status === 'confirmed';
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+        .slice(0, 6); // Show next 6 bookings
+    
+    if (upcomingBookings.length === 0) {
+        previewGrid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-dark); opacity: 0.7;">
+                <p>No upcoming games scheduled yet.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    previewGrid.innerHTML = upcomingBookings.map(booking => {
+        const date = new Date(booking.date);
+        const day = date.getDate();
+        const month = date.toLocaleDateString('en-US', { month: 'SHORT' }).toUpperCase();
+        
+        return `
+            <div class="team-card">
+                <div class="team-date">
+                    <span class="date-day">${day}</span>
+                    <span class="date-month">${month}</span>
+                </div>
+                <div class="team-info">
+                    <h3 class="team-name">${booking.teamName || 'Team'}</h3>
+                    <p class="team-time">${booking.timeSlot}</p>
+                    <p class="team-slot">${booking.hours || 2} hours</p>
+                </div>
+                <div class="team-status available">Booked</div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Load upcoming games for full page
+function loadUpcomingGames() {
+    const gamesGrid = document.getElementById('gamesGrid');
+    if (!gamesGrid) return;
+    
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const upcomingBookings = bookings
+        .filter(booking => {
+            const bookingDate = new Date(booking.date);
+            bookingDate.setHours(0, 0, 0, 0);
+            return bookingDate >= today && booking.status === 'confirmed';
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    if (upcomingBookings.length === 0) {
+        gamesGrid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--text-dark); opacity: 0.7;">
+                <i class="fas fa-futbol" style="font-size: 3rem; margin-bottom: 1rem; display: block;"></i>
+                <h3>No upcoming games scheduled</h3>
+                <p>Be the first to book a slot!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    gamesGrid.innerHTML = upcomingBookings.map(booking => {
+        const date = new Date(booking.date);
+        const day = date.getDate();
+        const month = date.toLocaleDateString('en-US', { month: 'SHORT' }).toUpperCase();
+        const formattedDate = date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+        
+        return `
+            <div class="team-card">
+                <div class="team-date">
+                    <span class="date-day">${day}</span>
+                    <span class="date-month">${month}</span>
+                </div>
+                <div class="team-info">
+                    <h3 class="team-name">${booking.teamName || 'Team'}</h3>
+                    <p class="team-time">${booking.timeSlot}</p>
+                    <p class="team-slot">${formattedDate}</p>
+                </div>
+                <div class="team-status available">Booked</div>
+            </div>
+        `;
+    }).join('');
+}
+
 // Load teams when page loads
 document.addEventListener('DOMContentLoaded', () => {
     loadUpcomingTeams();
+    loadUpcomingGamesPreview();
     
     // Reload teams when a new booking is made
     const originalShowBookingSuccess = window.showBookingSuccess;
@@ -1465,6 +1991,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             localStorage.setItem('bookings', JSON.stringify(bookings));
             loadUpcomingTeams();
+            loadUpcomingGamesPreview();
+            if (typeof loadUpcomingGames === 'function') {
+                loadUpcomingGames();
+            }
         };
     }
 });
